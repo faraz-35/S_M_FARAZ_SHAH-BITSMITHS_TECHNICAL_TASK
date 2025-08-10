@@ -1,41 +1,23 @@
+
 // app/page.tsx
 import StoryList from './components/StoryList';
 import Pagination from './components/Pagination';
-import { Story } from '../types';
+import { getTopStoryIds, getStory } from '../services/hackerNews';
 
-const HACKER_NEWS_API_URL = 'https://hacker-news.firebaseio.com/v0';
-
-async function getTopStoryIds(): Promise<number[]> {
-  const response = await fetch(`${HACKER_NEWS_API_URL}/topstories.json`, {
-    next: { revalidate: 60 }, // Revalidate every 60 seconds
-  });
-  if (!response.ok) {
-    throw new Error('Failed to fetch top story IDs');
-  }
-  return response.json();
-}
-
-async function getStory(id: number): Promise<Story> {
-  const response = await fetch(`${HACKER_NEWS_API_URL}/item/${id}.json`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch story with id: ${id}`);
-  }
-  return response.json();
-}
-
-export default async function HomePage({
-  searchParams,
-}: {
+interface HomePageProps {
   searchParams: { [key: string]: string | string[] | undefined };
-}) {
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
   const page = typeof searchParams.page === 'string' ? Number(searchParams.page) : 1;
   const storiesPerPage = 10;
+  const startIndex = (page - 1) * storiesPerPage;
 
   try {
     const topStoryIds = await getTopStoryIds();
     const paginatedStoryIds = topStoryIds.slice(
-      (page - 1) * storiesPerPage,
-      page * storiesPerPage
+      startIndex,
+      startIndex + storiesPerPage
     );
 
     const stories = await Promise.all(
@@ -45,7 +27,7 @@ export default async function HomePage({
     return (
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-orange-600">Hacker News</h1>
-        <StoryList stories={stories} />
+        <StoryList stories={stories} startIndex={startIndex} />
         <Pagination
           currentPage={page}
           totalStories={topStoryIds.length}
@@ -54,12 +36,13 @@ export default async function HomePage({
       </div>
     );
   } catch (error) {
+    console.error(error);
     return (
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-red-600">
           Error fetching stories
         </h1>
-        <p>{error instanceof Error ? error.message : 'An unknown error occurred'}</p>
+        <p>There was an error fetching the stories. Please try again later.</p>
       </div>
     );
   }
